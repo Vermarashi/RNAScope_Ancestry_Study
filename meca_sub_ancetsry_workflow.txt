@@ -1,0 +1,230 @@
+#########################################################################################################
+#########################################################################################################
+# Title: MECA Sub-Ancestry Inference Workflow								
+# Author: Rashi Verma											
+# Date: 2025-10-02											
+# Description:												
+#   - Analyze fine-scale ancestry structure within the African-related					
+#     component of the MECA cohort									
+#   - Prepare SNP data for sub-continental ancestry inference						
+#													
+# Input:												
+#   - Quality-controlled MECA SNP dataset								
+#   - Reference population SNP dataset									
+#													
+# Output:												
+#   - Sub-ancestry genotype dataset									
+#   - Sub-ancestry estimates										
+#########################################################################################################
+#########################################################################################################
+
+# Step 1: Prepare Reference.VCF File
+## Download 1000Genome Reference Chromosome 1 to 22 (vcf.gz and vcf.gz.tbi)
+wget -r -np -nH --cut-dirs=6 -R "index.html*" ftp://ftp.1000genomes.ebi.ac.uk/vol1/ftp/data_collections/1000G_2504_high_coverage/working/phase3_liftover_nygc_dir/
+
+## Concate all vcf.gz files
+bcftools concat *.vcf.gz -o concat_subset_ref_all.vcf
+
+## Extract interest of reference samples (east and west african) from 1000 Genome reference samples
+## Step 1: download sample file from 1000Genome data portal and write sample_ID in sample_id_ref.txt file (one sample one line, header isn't needed)
+## Step 2: Write a Script "extract_ref_sample.sh" and give permission to it. Run it in nohup to generate the interest_ref.vcf file 
+Bash extract_ref_sample.sh
+
+## reconfirm chromosome no. and sample ID before moving forward.
+bcftools query -f '%CHROM\n' extracted_samples.vcf.gz|uniq			 (# Check all chromosomes present or not)
+bcftools query -l extracted_samples.vcf.gz |uniq |wc -l										
+bcftools view -h extracted_samples.vcf.gz | grep '^#CHROM' > ref_header.txt	 (# Check sample identity and validate above number of samples*)
+
+## Modify chromosome IDs in reference file
+## prepare chromosome.txt file
+bcftools query -f '%CHROM\n' extracted_samples.vcf.gz|uniq > chromosomes.txt	 (# chromosome.txt should be tab separated)
+nano chromosomes.txt
+chr10   10
+chr11   11
+chr12   12
+chr13   13
+chr14   14
+chr15   15
+chr16   16
+chr17   17
+chr18   18
+chr19   19
+chr1    1
+chr20   20
+chr21   21
+chr22   22
+chr2    2
+chr3    3
+chr4    4
+chr5    5
+chr6    6
+chr7    7
+chr8    8
+chr9    9
+
+## rename the chromosome
+bcftools annotate --rename-chrs chromosomes.txt extracted_samples.vcf.gz -Oz -o ref_edit.vcf.gz						
+gunzip ref_edit.vcf.gz
+
+# step 2: prepare meca.vcf_file
+## merge visit_1 and visit_2 gvcf file
+bcftools merge --force-samples -o meca_visit_1_all_gvcf.vcf -Oz *.vcf.gz
+bcftools merge --force-samples -o meca_visit_2_all_gvcf.vcf -Oz *.vcf.gz
+
+## Index files
+tabix -p vcf meca_visit_1_all_gvcf.vcf.gz
+tabix -p vcf meca_visit_2_all_gvcf.vcf.gz
+
+## Convert gvcf to vcf
+GATK --java-options "-Xmx100G" GenotypeGVCFs -R /REF/REFERENCES/GRCH38_MainChrs/Homo_sapiens.GRCh38.dna.mainchrs.fa -V meca_visit_1_all_gvcf.vcf.gz -O meca_visit_1_combine_all.vcf.gz &
+GATK --java-options "-Xmx100G" GenotypeGVCFs -R /REF/REFERENCES/GRCH38_MainChrs/Homo_sapiens.GRCh38.dna.mainchrs.fa -V meca_visit_2_all_gvcf.vcf.gz -O meca_visit_2_combine_all.vcf.gz &
+
+## Merge visit 1 and visit 2 samples
+bcftools merge --force-samples -o meca_visit_1_2.vcf.gz -Oz meca_visit_1_combine_all.vcf.gz meca_visit_2_combine_all.vcf.gz
+
+## Rename the samples
+bcftools reheader -s rename_sample.txt -o meca_visit_1_2_rename.vcf.gz meca_visit_1_2.vcf.gz
+
+## Extract Genotype infromation (GT)from Format to  make it simple
+bcftools annotate -O v -x ^FORMAT/GT meca_visit_1_2_rename.vcf.gz > meca_GT.vcf
+
+## Count the number of variants in the original VCF file.
+bcftools view -H meca_GT.vcf |wc -l									
+
+## Filter the VCF file for variants 
+bcftools filter -i 'QUAL > 30 & DP > 10' meca_GT.vcf -o meca_GT_Qual.vcf
+bcftools view -H meca_GT_Qual.vcf |wc -l							
+
+## Extract only SNP variants from the filtered VCF
+bcftools view -v snps meca_GT_Qual.vcf -o meca_GT_snps.vcf
+bcftools view -H meca_GT_snps.vcf |wc -l							
+
+## Filter SNPs with allele frequency
+bcftools filter -i 'AF > 0.05' meca_GT_snps.vcf -o high_af_snps.vcf
+bcftools view -H high_af_snps.vcf |wc -l							
+
+## Compress and index the high allele frequency SNPs VCF file
+bgzip high_af_snps.vcf
+tabix -p vcf high_af_snps.vcf.gz
+
+## Annotate the high allele frequency SNPs
+bcftools annotate -a ../dbsnp138_edit_sorted.vcf.gz -c CHROM,POS,ID,REF,ALT -o annotated_d.vcf high_af_snps.vcf.gz
+bgzip annotated_d.vcf
+tabix -p vcf annotated_d.vcf.gz
+bcftools annotate -a ../hapmap_3.3.hg38_edit.vcf.gz -c CHROM,POS,ID,REF,ALT -o annotated_h.vcf annotated_d.vcf.gz
+bgzip annotated_h.vcf
+tabix -p vcf annotated_h.vcf.gz
+bcftools annotate -a ../Mills_and_1000G_gold_standard.indels.hg38_edit.vcf.gz -c CHROM,POS,ID,REF,ALT -o annotated_m.vcf annotated_h.vcf.gz
+bgzip annotated_m.vcf
+tabix -p vcf annotated_m.vcf.gz
+
+# Step_3 quality control of query and reference file
+## Query
+bcftools view -O z -o meca_AC3.vcf.gz -i 'AC>3' annotated_m.vcf.gz
+tabix -f meca_AC3.vcf.gz
+bcftools view -O z -o meca_2alleles.vcf.gz --max-alleles 2 meca_AC3.vcf.gz
+tabix -f meca_2alleles.vcf.gz
+bcftools norm -d both -o meca_both.vcf.gz -Oz meca_2alleles.vcf.gz
+
+## References
+bcftools view -O z -o ref_AC3.vcf.gz -i 'AC>3' ref_edit.vcf.gz
+tabix -f ref_AC3.vcf.gz
+bcftools view -O z -o ref_2alleles.vcf.gz --max-alleles 2 ref_AC3.vcf.gz
+tabix -f ref_2alleles.vcf.gz
+bcftools norm -d both -o ref_both.vcf.gz -Oz ref_2alleles.vcf.gz
+
+
+# Step 4: Remove bad variants from query files
+vcf-validator meca_both.vcf.gz > validator_output.txt 2>&1
+grep "Bad ALT value" validator_output.txt > bad_alt_errors.txt
+awk -F'[: ]' '{print $4"\t"$5}' bad_alt_errors.txt > remove_variants.txt
+bcftools view -T ^remove_variants.txt meca_both.vcf.gz -Oz -o meca_variants.vcf.gz
+
+# Step 5: Phasing and imputation
+bcftools norm -d all -o ref_all.vcf.gz -Oz ref_both.vcf.gz
+java -Xmx200g -jar /usr/bin/beagle.28Jun21.220.jar gt=meca_variants.vcf.gz ref=ref_all.vcf.gz out=meca_imputated impute=true gp=true nthreads=8
+bcftools view -i 'INFO/DR2>0.3' meca_imputated.vcf.gz -Oz -o meca_imputated_filtered.vcf.gz
+tabix -p vcf meca_imputated_filtered.vcf.gz
+bcftools annotate -O v -x ^FORMAT/GT meca_imputated_filtered.vcf.gz > meca_imputated_GT.vcf
+gunzip ref_all.vcf.gz
+
+# Step 6: extract chromosome, position, reference, and alternate allele information for reference and Query File
+grep -v '^#' meca_imputated_GT.vcf | cut -f1-5 | tr '\t' ':' > query_info.txt			
+grep -v '^#' ref_all.vcf | cut -f1-5 | tr '\t' ':' > ref_info.txt				
+grep -F -x -f ref_info.txt query_info.txt > common_entries.txt
+cat common_entries.txt |wc -l													
+sed -i 's/:/\t/g' common_entries.txt
+
+## run a custom Python script to get common variants from reference and meca vcf file
+python script.py
+	
+## check the number of variants before proceed
+bcftools view -H output_r.vcf | wc -l						
+bcftools view -H output_q.vcf | wc -l						
+
+# Step 7: Processing of reference and query files
+##convert VCF to PLINK format
+PLINK --vcf output_q.vcf --make-bed --out meca
+PLINK --vcf output_r.vcf --make-bed --out reference
+
+## filter plink files based on minor allele frequency, genotype and Hardy-Weinberg parameters
+PLINK --bfile meca --maf 0.05 --geno 0.05 --hwe 1e-4 midp --make-bed --out meca_filtered				
+PLINK --bfile reference --maf 0.05 --geno 0.05 --hwe 1e-4 midp --make-bed --out ref_filtered				
+
+## perform LD pruning to remove correlated SNPs
+PLINK --bfile meca_filtered --indep-pairwise 100 50 0.5 --out meca_filtered_ld_pruned
+PLINK --bfile meca_filtered --extract meca_filtered_ld_pruned.prune.in --export vcf --out meca_filtered_ld
+PLINK --bfile ref_filtered --indep-pairwise 100 50 0.5 --out ref_filtered_ld_pruned
+PLINK --bfile ref_filtered --extract ref_filtered_ld_pruned.prune.in --export vcf --out ref_filtered_ld
+
+## check no. of variants left
+bcftools view -H meca_filtered_ld.vcf |wc -l				
+bcftools view -H ref_filtered_ld.vcf |wc -l					
+
+## again find the common variants 
+grep -v '^#' ref_filtered_ld.vcf | cut -f1-5 | tr '\t' ':' > ref_info_1.txt
+grep -v '^#' meca_filtered_ld.vcf | cut -f1-5 | tr '\t' ':' > query_info_1.txt
+grep -F -x -f ref_info_1.txt query_info_1.txt > common_entries_1.txt												
+sed -i 's/:/\t/g' common_entries_1.txt
+python script.py
+
+## check no. common variants after final filtering
+bcftools view -H output_r_1.vcf | wc -l						
+bcftools view -H output_q_1.vcf | wc -l						
+
+## compress and index the output VCF files
+bgzip output_q_1.vcf
+bgzip output_r_1.vcf
+tabix -p vcf output_q_1.vcf.gz
+tabix -p vcf output_r_1.vcf.gz
+
+# Step 8: merge the meca and reference VCF files
+bcftools merge output_q_1.vcf.gz output_r_1.vcf.gz -o merged.vcf
+less -S merged.vcf
+
+## make plink file
+PLINK --vcf merged.vcf --make-bed --out merged
+
+## update ids in fam file for better understanding on meca and refernce samples
+## make update_ids.txt file having information for sample_id, population and sample_label
+## makke copy of original file
+cp merged.fam merged_original.fam
+cp ../common/update_fam.py .
+## run python script to update fam
+python update_fam.py
+
+# Step 9:perform PCA analysis with PLINK.
+PLINK --bfile merged --pca 30 --out merged_pca
+
+## run rye for genentic ancestry analysis
+## Make pop2group.txt
+Pop	Subgroup	Group
+ESN	Nigerian	WestAfrican
+GWD	Senegambian	WestAfrican
+LWK	EastAfrican	EastAfrican
+MSL	Mende	WestAfrican
+YRI	Nigerian	WestAfrican
+
+# Step 10 :Run genetic_ancestry analysis using rye.R script_4
+## make pop2group.txt which contain the  information of population ("https://github.com/healthdisparities/rye")
+./rye.R --eigenvec=merged_pca.eigenvec --eigenval=merged_pca.eigenval --pop2group=pop2group.txt --rounds=5 --threads=2 --iter=5 --out=meca
