@@ -1,4 +1,3 @@
-
 # RNAScope_Ancestry_Study
 
 Scripts for the RNAScope-Ancestry study in collaboration with Dr. Robert Meller.
@@ -7,7 +6,7 @@ This repository contains the main scripts used for genetic ancestry analysis and
 
 The workflow starts with RNA-seq-derived variants generated from the upstream GATK variant-calling pipeline. The scripts here cover variant filtering, common variant selection, LD pruning, PCA, ancestry inference, and comparison with 1000 Genomes reference populations. Additional scripts are used for sub-ancestry analysis and examining the relationship between ancestry and gene expression.
 
-The ancestry estimates were also compared with ADMIXTURE and validated using the MAGE dataset.
+The ancestry estimates were also compared with ADMIXTURE and validated using a publicly available MAGE dataset.
 
 Raw sequencing data will be available through dbGaP. Sample information is not included here because it contains sensitive participant information.
 
