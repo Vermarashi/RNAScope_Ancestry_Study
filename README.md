@@ -1,4 +1,4 @@
-# RNAScope_Ancestry Study
+# RNAScope_Ancestry_Study
 
 Scripts for the RNAScope-Ancestry study in collaboration with Dr. Robert Meller.
 
