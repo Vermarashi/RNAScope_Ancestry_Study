@@ -10,4 +10,4 @@ The ancestry estimates were also compared with ADMIXTURE and validated using a p
 
 Raw data will be available through dbGaP. Sample information is not included in this repository because it contains sensitive participant information.
 
-The initial RNA-seq processing and GATK variant-calling pipeline was developed in collaboration with Dr. Robert Meller and colleagues. The scripts in this repository cover the subsequent genetic ancestry analysis performed for the RNAScope-Ancestry study.
+The initial RNA-seq processing and GATK variant-calling pipeline was developed in collaboration with Dr. Robert Meller and colleagues (https://github.com/rob-meller/RNAScope-Ancestry_Study/). The scripts in this repository cover the subsequent genetic ancestry analysis performed for the RNAScope-Ancestry study.
