@@ -231,4 +231,4 @@ YRI	Nigerian	African
 
 # Step 9 :Run genetic_ancestry analysis using rye.R script_4
 ## make pop2group.txt which contain the  information of population ("https://github.com/healthdisparities/rye")
-./rye.R --eigenvec=merged_pca.eigenvec --eigenval=merged_pca.eigenval --pop2group=pop2group.txt --rounds=5 --threads=2 --iter=5 --out=meca
+./rye.R --eigenvec=merged_pca.eigenvec --eigenval=merged_pca.eigenval --pop2group=pop2group.txt --rounds=200 --threads=2 --iter=100 --out=meca
