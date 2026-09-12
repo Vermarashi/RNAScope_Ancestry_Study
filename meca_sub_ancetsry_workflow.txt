@@ -168,8 +168,8 @@ PLINK --vcf output_q.vcf --make-bed --out meca
 PLINK --vcf output_r.vcf --make-bed --out reference
 
 ## filter plink files based on minor allele frequency, genotype and Hardy-Weinberg parameters
-PLINK --bfile meca --maf 0.05 --geno 0.05 --hwe 1e-4 midp --make-bed --out meca_filtered				
-PLINK --bfile reference --maf 0.05 --geno 0.05 --hwe 1e-4 midp --make-bed --out ref_filtered				
+PLINK --bfile meca --maf 0.05 --geno 0.05 --hwe 1e-8 midp --make-bed --out meca_filtered				
+PLINK --bfile reference --maf 0.05 --geno 0.05 --hwe 1e-8 midp --make-bed --out ref_filtered				
 
 ## perform LD pruning to remove correlated SNPs
 PLINK --bfile meca_filtered --indep-pairwise 100 50 0.5 --out meca_filtered_ld_pruned
@@ -227,4 +227,4 @@ YRI	Nigerian	WestAfrican
 
 # Step 10 :Run genetic_ancestry analysis using rye.R script_4
 ## make pop2group.txt which contain the  information of population ("https://github.com/healthdisparities/rye")
-./rye.R --eigenvec=merged_pca.eigenvec --eigenval=merged_pca.eigenval --pop2group=pop2group.txt --rounds=5 --threads=2 --iter=5 --out=meca
+./rye.R --eigenvec=merged_pca.eigenvec --eigenval=merged_pca.eigenval --pop2group=pop2group.txt --rounds=200 --threads=2 --iter=100 --out=meca
